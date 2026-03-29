@@ -1,0 +1,5 @@
+#!/bin/bash
+# Main entry point for the book downloader skill
+# Uses smart finder with defensive validation and known good URLs
+
+~/.claude/skills/book-downloader/scripts/smart_finder.sh "$@"
