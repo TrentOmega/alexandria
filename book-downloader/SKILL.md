@@ -69,3 +69,17 @@ The skill will automatically download the best available version of the book bas
 /skill book-downloader "Let It Go" by Peter Walsh
 
 Finds the book and provides a direct link to download it manually from Anna's Archive.
+## Subscription Key (Optional)
+
+To use an Anna's Archive subscription key for authenticated requests:
+
+1. Create a `.env` file in the skill directory:
+   ```bash
+   echo "ANNAS_ARCHIVE_KEY=your_key_here" > ~/.claude/skills/book-downloader/.env
+   ```
+
+2. The skill will automatically load and use this key for all requests
+
+3. The `.env` file is excluded from git (in `.gitignore`)
+
+Note: The key file should never be committed to git.

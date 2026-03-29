@@ -1,5 +1,5 @@
 #!/bin/bash
-# Smart book finder with lessons learned
+# Smart book finder with lessons learned + Auth support
 # Key principles:
 # 1. NEVER trust first search result - always validate title matches query
 # 2. For specific known books, use verified URLs when available
@@ -7,7 +7,27 @@
 # 4. Verify author name in the result
 # 5. Favor EPUB format when looking for recent editions
 # 6. Be defensive - reject results that don't match rather than return wrong books
+# 7. Use subscription key if available
 
+# Load subscription key from .env if available
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/../.env" ]; then
+    set -a
+    source "$SCRIPT_DIR/../.env"
+    set +a
+fi
+
+QUERY="$1"
+OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
+
+mkdir -p "$OUTPUT_DIR" 2>/dev/null || true
+
+log() {
+    echo "[$(date 2>/dev/null || echo "time")] $*" >&2
+}
+
+log "Searching for: $QUERY"
+[ -n "${ANNAS_ARCHIVE_KEY:-}" ] && log "Using authenticated requests"
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
 
