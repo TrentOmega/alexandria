@@ -12,7 +12,7 @@
     "*://annas-archive.pk/*",
     "*://annas-archive.gd/*",
     "*://annas-archive.org/*",
-    "*://raw.githubusercontent.com/*"
+    "*://api.github.com/*"
   ],
   "background": {
     "scripts": ["background.js"],

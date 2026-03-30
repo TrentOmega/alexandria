@@ -5,13 +5,18 @@ const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const clearBtn = document.getElementById('clearBtn');
 const loadQueueBtn = document.getElementById('loadQueueBtn');
+const githubTokenInput = document.getElementById('githubToken');
+const saveTokenBtn = document.getElementById('saveTokenBtn');
+const tokenStatus = document.getElementById('tokenStatus');
 const statusDiv = document.getElementById('status');
 const progressDiv = document.getElementById('progress');
 
 let isRunning = false;
+let githubToken = '';
 
 // GitHub queue configuration
-const GITHUB_QUEUE_URL = 'https://raw.githubusercontent.com/TrentOmega/alexandria-downloads/refs/heads/master/download-queue.md';
+const GITHUB_REPO = 'TrentOmega/alexandria-downloads';
+const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/contents/download-queue.md`;
 
 // Update status display
 function updateStatus(message) {
@@ -85,11 +90,25 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
-// Restore saved links if any
-browser.storage.local.get('savedLinks').then((result) => {
+// Restore saved links and token
+browser.storage.local.get(['savedLinks', 'githubToken']).then((result) => {
   if (result.savedLinks) {
     linksTextarea.value = result.savedLinks.join('\n');
   }
+  if (result.githubToken) {
+    githubToken = result.githubToken;
+    githubTokenInput.value = githubToken;
+    tokenStatus.textContent = '(saved)';
+  }
+});
+
+// Save GitHub token
+saveTokenBtn.addEventListener('click', () => {
+  githubToken = githubTokenInput.value.trim();
+  browser.storage.local.set({ githubToken: githubToken }).then(() => {
+    tokenStatus.textContent = '(saved)';
+    setTimeout(() => { tokenStatus.textContent = ''; }, 2000);
+  });
 });
 
 // Save links when changed
@@ -102,13 +121,33 @@ loadQueueBtn.addEventListener('click', async () => {
   updateStatus('Loading queue from GitHub...');
   loadQueueBtn.disabled = true;
 
+  if (!githubToken) {
+    updateStatus('Error: Please enter and save your GitHub token first');
+    loadQueueBtn.disabled = false;
+    return;
+  }
+
   try {
-    const response = await fetch(GITHUB_QUEUE_URL);
+    // Use GitHub API to fetch file content from private repo
+    const response = await fetch(GITHUB_API_URL, {
+      headers: {
+        'Authorization': `token ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Invalid GitHub token');
+      } else if (response.status === 404) {
+        throw new Error('Repository or file not found');
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const text = await response.text();
+    const data = await response.json();
+    // GitHub API returns base64 encoded content
+    const text = atob(data.content);
     const pendingLinks = parseQueueFile(text);
 
     if (pendingLinks.length === 0) {
