@@ -1,4 +1,4 @@
-:// Background script for Firefox extension
+// Background script for Firefox extension
 // Manages the download queue and navigation
 
 let downloadQueue = [];
@@ -22,6 +22,17 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   }
 });
 
+// Extract MD5 from URL
+function getMd5FromUrl(url) {
+  const match = url.match(/\/md5\/([a-f0-9]+)/);
+  return match ? match[1] : null;
+}
+
+// Construct fast download URL from MD5 (user discovered pattern)
+function getFastDownloadUrl(md5, domain) {
+  return `https://${domain}/fast_download/${md5}/0/0`;
+}
+
 // Process next book in queue
 async function processNext() {
   if (!isRunning || currentIndex >= downloadQueue.length) {
@@ -31,6 +42,8 @@ async function processNext() {
   }
 
   const url = downloadQueue[currentIndex];
+  const md5 = getMd5FromUrl(url);
+  const domain = new URL(url).hostname;
   currentIndex++;
 
   notifyPopup('progress', {
@@ -42,16 +55,24 @@ async function processNext() {
   });
 
   try {
+    // If we have an MD5, try the fast download URL pattern first
+    // The user's discovery: /md5/{hash} -> /fast_download/{hash}/0/0
+    let navigationUrl = url;
+    if (md5) {
+      navigationUrl = getFastDownloadUrl(md5, domain);
+      console.log('Background: Using fast download URL:', navigationUrl);
+    }
+
     // Create or navigate to tab
     if (currentTabId) {
-      await browser.tabs.update(currentTabId, { url: url, active: true });
+      await browser.tabs.update(currentTabId, { url: navigationUrl, active: true });
     } else {
-      const tab = await browser.tabs.create({ url: url, active: true });
+      const tab = await browser.tabs.create({ url: navigationUrl, active: true });
       currentTabId = tab.id;
     }
 
-    // Wait for page to load and content script to report
-    // Content script will handle the actual download button clicking
+    // Content script will handle the actual download
+    // It will check if we're on a fast_download page and handle accordingly
   } catch (error) {
     console.error('Navigation error:', error);
     notifyPopup('error', { message: error.message });
@@ -62,6 +83,11 @@ async function processNext() {
 
 // Listen for messages from content script
 browser.runtime.onMessage.addListener((message, sender) => {
+  if (message.action === 'isActive') {
+    // Content script asking if it should be active
+    return Promise.resolve(isRunning);
+  }
+
   if (message.action === 'downloaded') {
     // Content script reports successful download
     notifyPopup('progress', {
@@ -73,7 +99,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
     });
 
     // Wait a bit then process next
-    setTimeout(processNext, 3000);
+    setTimeout(processNext, 4000);
   }
 
   if (message.action === 'downloadFailed') {
