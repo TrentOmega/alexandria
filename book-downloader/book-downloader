@@ -1,9 +1,24 @@
 #!/bin/bash
-# Main entry point for the book downloader skill
-# Uses smart finder with defensive validation and known good URLs
-# Also writes to GitHub queue for extension to download
+# Book Downloader Skill - Direct Download Edition
+# Finds books on Anna's Archive and downloads them directly using the fast download pattern
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_DIR="${HOME}/.claude/downloads"
+
+mkdir -p "$OUTPUT_DIR"
+
+# Function to extract MD5 from URL
+get_md5_from_url() {
+    echo "$1" | grep -o '/md5/[a-f0-9]*' | cut -d'/' -f3
+}
+
+# Function to transform MD5 URL to fast download URL
+get_fast_download_url() {
+    local url="$1"
+    local domain=$(echo "$url" | sed 's|https://\([^/]*\)/.*|\1|')
+    local md5=$(get_md5_from_url "$url")
+    echo "https://${domain}/fast_download/${md5}/0/0"
+}
 
 # Run smart finder and capture output
 OUTPUT=$("$SCRIPT_DIR/scripts/smart_finder.sh" "$@" 2>&1)
@@ -12,34 +27,67 @@ EXIT_CODE=$?
 # Show output to user
 echo "$OUTPUT"
 
-# If successful, also write to GitHub queue
+# If successful, download the book
 if [ $EXIT_CODE -eq 0 ]; then
-    # Extract URL and title from output
-    URL=$(echo "$OUTPUT" | grep "Download link:" | sed 's/Download link: //')
-    TITLE=$(echo "$OUTPUT" | grep "Found book:" | sed 's/Found book: //' | cut -d'(' -f1 | sed 's/ *$//')
+    # Extract URL from output
+    MD5_URL=$(echo "$OUTPUT" | grep "Download link:" | sed 's/Download link: //')
 
-    if [ -n "$URL" ] && [ -n "$TITLE" ]; then
+    if [ -n "$MD5_URL" ]; then
+        # Transform to fast download URL
+        FAST_URL=$(get_fast_download_url "$MD5_URL")
+        DOMAIN=$(echo "$MD5_URL" | sed 's|https://\([^/]*\)/.*|\1|')
+
         echo ""
-        echo "Adding to GitHub download queue..."
+        echo "Fast download URL: $FAST_URL"
+        echo ""
 
-        # Determine author based on title patterns
-        AUTHOR="Unknown"
-        if echo "$TITLE" | grep -qi "walsh"; then
-            AUTHOR="Peter Walsh"
-        elif echo "$TITLE" | grep -qi "bray"; then
-            AUTHOR="Ilona Bray"
-        elif echo "$TITLE" | grep -qi "sloan"; then
-            AUTHOR="Todd Sloan"
+        # Extract title for filename
+        TITLE=$(echo "$OUTPUT" | grep "Found book:" | sed 's/Found book: //')
+        [ -z "$TITLE" ] && TITLE="book"
+
+        # Clean filename (remove special chars, limit length)
+        FILENAME=$(echo "$TITLE" | tr -cd '[:alnum:] [:space:]' | sed 's/  */_/g' | cut -c1-60)
+        FILENAME="${FILENAME}.pdf"
+
+        echo "Downloading: $FILENAME"
+        echo "Destination: $OUTPUT_DIR/"
+
+        # Download with curl
+        # -L follows redirects
+        # -o specifies output file
+        # --progress-bar shows download progress
+        if curl -L -o "$OUTPUT_DIR/$FILENAME" "$FAST_URL" --progress-bar \
+            -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" 2>&1; then
+
+            # Verify file was downloaded and has content
+            if [ -s "$OUTPUT_DIR/$FILENAME" ]; then
+                FILESIZE=$(ls -lh "$OUTPUT_DIR/$FILENAME" | awk '{print $5}')
+                echo ""
+                echo "✓ Downloaded successfully: $FILENAME ($FILESIZE)"
+                echo "Location: $OUTPUT_DIR/"
+
+                # Also show MD5 link for reference
+                echo ""
+                echo "MD5 link (for reference): $MD5_URL"
+            else
+                echo ""
+                echo "✗ Download failed: file is empty"
+                echo "You can try downloading manually from: $MD5_URL"
+                rm -f "$OUTPUT_DIR/$FILENAME" 2>/dev/null
+                exit 1
+            fi
+        else
+            echo ""
+            echo "✗ Download failed"
+            echo "You can try downloading manually from: $MD5_URL"
+            exit 1
         fi
 
-        # Extract year if in title
-        YEAR=$(echo "$OUTPUT" | grep -o "20[0-9][0-9]" | head -1)
-        [ -z "$YEAR" ] && YEAR="$(date +%Y)"
-
-        # Write to queue
-        "$SCRIPT_DIR/scripts/queue_writer.sh" "$URL" "$TITLE" "$AUTHOR" "$YEAR" "PDF" "pending" 2>/dev/null || {
-            echo "Note: Could not write to GitHub queue (may not be configured)"
-        }
+        # Optional: Add to GitHub queue for extension (keeping this for compatibility)
+        # but don't fail if it doesn't work
+        echo "$MD5_URL" "$TITLE" | while read url title; do
+            "$SCRIPT_DIR/scripts/queue_writer.sh" "$url" "$title" "Unknown" "$(date +%Y)" "PDF" "pending" 2>/dev/null || true
+        done &
     fi
 fi
 
