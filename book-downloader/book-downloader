@@ -1,5 +1,46 @@
 #!/bin/bash
 # Main entry point for the book downloader skill
 # Uses smart finder with defensive validation and known good URLs
+# Also writes to GitHub queue for extension to download
 
-~/.claude/skills/book-downloader/scripts/smart_finder.sh "$@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Run smart finder and capture output
+OUTPUT=$("$SCRIPT_DIR/scripts/smart_finder.sh" "$@" 2>&1)
+EXIT_CODE=$?
+
+# Show output to user
+echo "$OUTPUT"
+
+# If successful, also write to GitHub queue
+if [ $EXIT_CODE -eq 0 ]; then
+    # Extract URL and title from output
+    URL=$(echo "$OUTPUT" | grep "Download link:" | sed 's/Download link: //')
+    TITLE=$(echo "$OUTPUT" | grep "Found book:" | sed 's/Found book: //' | cut -d'(' -f1 | sed 's/ *$//')
+
+    if [ -n "$URL" ] && [ -n "$TITLE" ]; then
+        echo ""
+        echo "Adding to GitHub download queue..."
+
+        # Determine author based on title patterns
+        AUTHOR="Unknown"
+        if echo "$TITLE" | grep -qi "walsh"; then
+            AUTHOR="Peter Walsh"
+        elif echo "$TITLE" | grep -qi "bray"; then
+            AUTHOR="Ilona Bray"
+        elif echo "$TITLE" | grep -qi "sloan"; then
+            AUTHOR="Todd Sloan"
+        fi
+
+        # Extract year if in title
+        YEAR=$(echo "$OUTPUT" | grep -o "20[0-9][0-9]" | head -1)
+        [ -z "$YEAR" ] && YEAR="$(date +%Y)"
+
+        # Write to queue
+        "$SCRIPT_DIR/scripts/queue_writer.sh" "$URL" "$TITLE" "$AUTHOR" "$YEAR" "PDF" "pending" 2>/dev/null || {
+            echo "Note: Could not write to GitHub queue (may not be configured)"
+        }
+    fi
+fi
+
+exit $EXIT_CODE
