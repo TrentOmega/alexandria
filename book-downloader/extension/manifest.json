@@ -11,7 +11,8 @@
     "*://annas-archive.gl/*",
     "*://annas-archive.pk/*",
     "*://annas-archive.gd/*",
-    "*://annas-archive.org/*"
+    "*://annas-archive.org/*",
+    "*://raw.githubusercontent.com/*"
   ],
   "background": {
     "scripts": ["background.js"],
