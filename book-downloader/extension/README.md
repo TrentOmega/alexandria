@@ -27,18 +27,42 @@ The extension will be loaded temporarily. To make it permanent, you need to subm
 
 For now, this is manual. In the future you can zip the files and submit to addons.mozilla.org.
 
+## GitHub Token Setup (for Private Repos)
+
+If your download queue is in a private GitHub repository, you need a Fine-grained personal access token:
+
+1. Go to https://github.com/settings/personal-access-tokens/new
+2. **Token name:** Book Downloader Extension
+3. **Expiration:** Choose your preferred expiration (e.g., 90 days)
+4. **Repository access:** Select "Only select repositories" and choose your `alexandria-downloads` repo
+5. **Permissions:**
+   - Under "Repository permissions" → "Contents" → Select **"Read-only"**
+   - Metadata will be automatically added as Read-only
+6. Click **"Generate token"**
+7. Copy the token (starts with `github_pat_`)
+
+**In the extension:**
+1. Open the extension popup
+2. Paste the token in the "GitHub Token (for private repo)" field
+3. Click **"Save Token"**
+4. Click **"Load From GitHub Queue"** to fetch pending books
+
+This uses a Fine-grained token with only read access to your specific repository, which is more secure than classic tokens that grant broader permissions.
+
 ## How to Use
 
 1. **Open the extension:** Click the book icon in Firefox toolbar
 
-2. **Paste MD5 links:** In the popup, paste your Anna's Archive MD5 URLs (one per line):
+2. **Load from queue (optional):** If you have a GitHub queue, click **"Load From GitHub Queue"** to auto-populate the list
+
+3. **Or paste MD5 links:** In the popup, paste your Anna's Archive MD5 URLs (one per line):
    ```
    https://annas-archive.gl/md5/0fadd83cfc7b73546cb124920f3d984d
    https://annas-archive.gl/md5/0b5ce2f01df83d04e16d7794533f7468
    https://annas-archive.gl/md5/5f1439becff40efa007e7e82bb0975e7
    ```
 
-3. **Click "Start Download":** The extension will:
+4. **Click "Start Download":** The extension will:
    - Visit each link
    - Wait for the page to load
    - Find and click the download button
@@ -110,6 +134,10 @@ extension/
 - Requires manual download button clicking (no API bypasses)
 - Files save to Firefox's default download location
 - Only works on MD5 detail pages (not search results)
+
+## Token Security Note
+
+The GitHub token is stored in the extension's local storage (not synced). It never leaves your browser except to make authenticated requests to GitHub's API. The token only has read access to your specific repository's contents.
 
 ## License
 
