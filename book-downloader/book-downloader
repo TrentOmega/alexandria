@@ -3,7 +3,7 @@
 # Finds books on Anna's Archive and downloads them directly using the fast download pattern
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="${HOME}/.claude/downloads"
+OUTPUT_DIR="${HOME}/Downloads"
 
 mkdir -p "$OUTPUT_DIR"
 

@@ -1,6 +1,6 @@
 ---
 name: book-downloader
-description: Download books from Anna's Archive (gl, pk, gd). Finds the book, transforms MD5 URL to fast download URL, and downloads directly to ~/.claude/downloads/
+description: Download books from Anna's Archive (gl, pk, gd). Finds the book, transforms MD5 URL to fast download URL, and downloads directly to ~/Downloads/
 ---
 
 # Book Downloader Skill
@@ -24,7 +24,7 @@ Or with author:
 3. **Transform URL**: Converts MD5 URL to fast download URL using the pattern:
    - MD5 URL: `https://annas-archive.gl/md5/{hash}`
    - Fast URL: `https://annas-archive.gl/fast_download/{hash}/0/0`
-4. **Download**: Downloads the PDF directly to `~/.claude/downloads/`
+4. **Download**: Downloads the PDF directly to `~/Downloads/`
 
 ## Key Features
 
@@ -37,7 +37,7 @@ Or with author:
 
 ## Download Location
 
-Files are saved to: `~/.claude/downloads/`
+Files are saved to: `~/Downloads/`
 
 ## Firefox Extension (Optional)
 

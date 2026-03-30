@@ -21,10 +21,10 @@ Alexandria is a book download automation system that helps users find and downlo
 1. Searches Anna's Archive (gl, pk, gd domains)
 2. Validates the found book matches the query
 3. Transforms MD5 URL to fast download URL: `/md5/{hash}` → `/fast_download/{hash}/0/0`
-4. Downloads the PDF directly to `~/.claude/downloads/`
+4. Downloads the PDF directly to `~/Downloads/`
 
 **Output**:
-- Book downloaded to `~/.claude/downloads/`
+- Book downloaded to `~/Downloads/`
 - Progress displayed during download
 - File size shown on completion
 
@@ -49,10 +49,34 @@ Alexandria is a book download automation system that helps users find and downlo
 
 | Location | Purpose |
 |----------|---------|
-| `~/.claude/downloads/` | Downloaded books |
+| `~/Downloads/` | Downloaded books |
 | `/home/user/.claude/skills/book-downloader/` | Skill code |
 | `/home/user/.claude/skills/book-downloader/extension/` | Firefox extension |
 | `~/Documents/Projects/alexandria-downloads/` | GitHub queue (for extension) |
+| `~/Documents/Projects/alexandria/AGENTS.md` | **This file - agent reference** |
+| `~/Documents/Projects/alexandria/CLAUDE.md` | Pointer to AGENTS.md |
+
+## Quick Reference
+
+### Download Command
+```
+/skill book-downloader "Book Title"
+```
+
+### URL Pattern
+MD5 URL: `https://annas-archive.gl/md5/{hash}`
+Fast Download: `https://annas-archive.gl/fast_download/{hash}/0/0`
+
+### Architecture
+```
+User Request
+    ↓
+/skill book-downloader "Book Title"
+    ↓
+Search Anna's Archive → Validate → Transform URL → Download
+    ↓
+~/Downloads/
+```
 
 ## Key Patterns
 
