@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 400px;
+      padding: 15px;
+      font-family: Arial, sans-serif;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 10px 0;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      resize: vertical;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      flex: 1;
+      padding: 10px;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .progress {
+      margin-top: 10px;
+    }
+    .current {
+      font-weight: bold;
+      color: #0066cc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Book Downloader</h1>
+  <p>Paste MD5 links (one per line):</p>
+  <textarea id="links" placeholder="https://annas-archive.gl/md5/...
+https://annas-archive.gl/md5/..."></textarea>
+  <div class="controls">
+    <button id="startBtn">Start Download</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="clearBtn">Clear List</button>
+  </div>
+  <div class="progress" id="progress"></div>
+  <div class="status" id="status">
+    Status: Ready<br>
+    Queue: 0 books
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
