@@ -11,7 +11,7 @@ const progressDiv = document.getElementById('progress');
 let isRunning = false;
 
 // GitHub queue configuration
-const GITHUB_QUEUE_URL = 'https://raw.githubusercontent.com/1dropa/alexandria-downloads/refs/heads/master/download-queue.md';
+const GITHUB_QUEUE_URL = 'https://raw.githubusercontent.com/TrentOmega/alexandria-downloads/refs/heads/master/download-queue.md';
 
 // Update status display
 function updateStatus(message) {
