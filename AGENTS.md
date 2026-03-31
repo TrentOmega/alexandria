@@ -30,8 +30,6 @@ Alexandria is a book download automation system that helps users find and downlo
 
 **Important Notes**:
 - The skill handles all validation and defensive checks
-- No need to use browser extensions (optional/Firefox extension exists but has bugs)
-- Direct download is the preferred method
 
 ## File Locations
 
@@ -84,6 +82,5 @@ Search Anna's Archive → Validate → Transform URL → Download
 
 ## See Also
 
-- `CLAUDE.md` - High-level project overview
 - `book-downloader/SKILL.md` - Skill documentation
 - `book-downloader/extension/README.md` - Firefox extension docs
