@@ -33,26 +33,12 @@ Alexandria is a book download automation system that helps users find and downlo
 - No need to use browser extensions (optional/Firefox extension exists but has bugs)
 - Direct download is the preferred method
 
-## Firefox Extension (Optional)
-
-**Location**: `/home/user/.claude/skills/book-downloader/extension/`
-
-**Status**: Secondary method, has known bugs
-
-**Use only if**:
-- User specifically requests browser-based downloads
-- User wants to queue multiple books
-
-**Token Setup**: See extension/README.md for Fine-grained token instructions
-
 ## File Locations
 
 | Location | Purpose |
 |----------|---------|
 | `~/Downloads/` | Downloaded books |
 | `/home/user/.claude/skills/book-downloader/` | Skill code |
-| `/home/user/.claude/skills/book-downloader/extension/` | Firefox extension |
-| `~/Documents/Projects/alexandria-downloads/` | GitHub queue (for extension) |
 | `~/Documents/Projects/alexandria/AGENTS.md` | **This file - agent reference** |
 | `~/Documents/Projects/alexandria/CLAUDE.md` | Pointer to AGENTS.md |
 

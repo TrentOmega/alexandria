@@ -83,11 +83,6 @@ if [ $EXIT_CODE -eq 0 ]; then
             exit 1
         fi
 
-        # Optional: Add to GitHub queue for extension (keeping this for compatibility)
-        # but don't fail if it doesn't work
-        echo "$MD5_URL" "$TITLE" | while read url title; do
-            "$SCRIPT_DIR/scripts/queue_writer.sh" "$url" "$title" "Unknown" "$(date +%Y)" "PDF" "pending" 2>/dev/null || true
-        done &
     fi
 fi
 

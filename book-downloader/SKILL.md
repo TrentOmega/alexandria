@@ -33,19 +33,10 @@ Or with author:
 - **Automatic Format Detection**: Prioritizes PDF, falls back to available format
 - **Clean Filenames**: Generates safe filenames from book titles
 - **Progress Display**: Shows download progress and file size
-- **Optional Extension Support**: Still writes to GitHub queue if you also use the Firefox extension
 
 ## Download Location
 
 Files are saved to: `~/Downloads/`
-
-## Firefox Extension (Optional)
-
-The Firefox extension still exists for users who prefer browser-based downloads or need to queue multiple books. However, the skill now downloads directly without requiring the extension.
-
-**Extension location**: `/book-downloader/extension/`
-
-**Note**: The extension has known bugs and is considered a secondary/fallback method.
 
 ## Dependencies
 
@@ -82,7 +73,7 @@ Downloading: Retirement_Made_Simple.pdf
 100  152k    0   152k  0     0   101k      0 --:--:--  0:00:01 --:--:--  101k
 
 ✓ Downloaded successfully: Retirement_Made_Simple.pdf (152K)
-Location: ~/.claude/downloads/
+Location: ~/Downloads/
 ```
 
 ## Known Limitations
