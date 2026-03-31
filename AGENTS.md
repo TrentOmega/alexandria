@@ -8,13 +8,13 @@ Alexandria is a book download automation system that helps users find and downlo
 
 ### book-downloader
 
-**Location**: `/home/user/.claude/skills/book-downloader/`
+**Location**: `/home/user/Documents/Projects/alexandria/book-downloader/`
 
 **Trigger**: Use this skill when the user asks for ANY book download, book search, or mentions wanting a book from Anna's Archive.
 
 **Usage**:
 ```
-/skill book-downloader "Book Title" "Author Name"
+/skill book-downloader "Book Title by Author"
 ```
 
 **What it does**:
@@ -30,13 +30,16 @@ Alexandria is a book download automation system that helps users find and downlo
 
 **Important Notes**:
 - The skill handles all validation and defensive checks
+- Pass a single query string; the wrapper does not accept author as a separate positional argument
+- Prefer the `book-downloader` wrapper over calling helper scripts directly
 
 ## File Locations
 
 | Location | Purpose |
 |----------|---------|
 | `~/Downloads/` | Downloaded books |
-| `/home/user/.claude/skills/book-downloader/` | Skill code |
+| `/home/user/Documents/Projects/alexandria/book-downloader/` | Skill source code |
+| `/home/user/Documents/Projects/alexandria/book-downloader/scripts/` | Bundled helper scripts |
 | `~/Documents/Projects/alexandria/AGENTS.md` | **This file - agent reference** |
 | `~/Documents/Projects/alexandria/CLAUDE.md` | Pointer to AGENTS.md |
 
@@ -44,7 +47,7 @@ Alexandria is a book download automation system that helps users find and downlo
 
 ### Download Command
 ```
-/skill book-downloader "Book Title"
+/skill book-downloader "Book Title by Author"
 ```
 
 ### URL Pattern
@@ -55,7 +58,7 @@ Fast Download: `https://annas-archive.gl/fast_download/{hash}/0/0`
 ```
 User Request
     ↓
-/skill book-downloader "Book Title"
+/skill book-downloader "Book Title by Author"
     ↓
 Search Anna's Archive → Validate → Transform URL → Download
     ↓
@@ -65,8 +68,9 @@ Search Anna's Archive → Validate → Transform URL → Download
 ## Key Patterns
 
 1. **URL Transformation**: `/md5/{hash}` → `/fast_download/{hash}/0/0`
-2. **Direct Download**: Use curl with fast download URL
+2. **Direct Download**: Let the wrapper derive and fetch the fast download URL
 3. **Validation**: Skill handles title/author matching - don't duplicate
+4. **Entry Point**: Prefer `book-downloader`; use `scripts/*.sh` only for targeted debugging or special cases
 
 ## When NOT to Use the Skill
 

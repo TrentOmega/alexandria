@@ -1,0 +1,4 @@
+interface:
+  display_name: "Book Downloader"
+  short_description: "Search and download books from Anna's Archive"
+  default_prompt: "Use $book-downloader to find and download a book from Anna's Archive by title, author, or edition."

@@ -1,81 +1,85 @@
 ---
 name: book-downloader
-description: Download books from Anna's Archive (gl, pk, gd). Finds the book, transforms MD5 URL to fast download URL, and downloads directly to ~/Downloads/
+description: Search Anna's Archive mirror domains (`gl`, `pk`, `gd`) for a requested book, validate the result against the requested title, author, or edition, convert `/md5/{hash}` detail URLs to `/fast_download/{hash}/0/0`, and download the file to `~/Downloads/`. Use when The Agent needs to find or download a book from Anna's Archive, or when a user asks for a book by title, author, edition, or Anna's Archive link.
 ---
 
-# Book Downloader Skill
+# Book Downloader
 
-This skill searches for a book on Anna's Archive and downloads it directly to your local machine.
+Use the `book-downloader` wrapper as the default entrypoint.
 
-## Usage
+```bash
+./book-downloader "How to Buy a Giant Banana"
+./book-downloader "Brain Surgery Made Simple 2020"
+```
 
-Invoke the skill with a book query:
+Pass a single query string. Do not pass the author as a separate positional argument. The helper scripts treat the second argument as an output directory.
 
-/skill book-downloader "The Little Book of Elves"
+## Default Workflow
 
-Or with author:
+1. Run `./book-downloader "<query>"`.
+2. Let it call `scripts/smart_finder.sh` to search Anna's Archive and validate the match.
+3. Let the wrapper transform the returned MD5 URL from `/md5/{hash}` to `/fast_download/{hash}/0/0`.
+4. Let the wrapper download the file to `~/Downloads/`.
 
-/skill book-downloader "How to Buy a Giant Banana" by Peter Pan
+Use the bundled scripts instead of reimplementing Anna's Archive scraping or URL construction ad hoc.
 
-## How It Works
+## Bundled Resources
 
-1. **Search Anna's Archive**: The skill searches Anna's Archive (gl, pk, gd) (which ever one is working)
-2. **Validate Results**: Defensive validation ensures the found book matches your query
-3. **Transform URL**: Converts MD5 URL to fast download URL using the pattern:
-   - MD5 URL: `https://annas-archive.gl/md5/{hash}`
-   - Fast URL: `https://annas-archive.gl/fast_download/{hash}/0/0`
-4. **Download**: Downloads the PDF directly to `~/Downloads/`
+- `book-downloader`
+  Use as the primary end-to-end wrapper. It runs `scripts/smart_finder.sh`, prints the validated MD5 URL, derives the fast download URL, and downloads the file to `~/Downloads/`.
+- `scripts/smart_finder.sh`
+  Use as the default finder. It handles known problematic titles, validates detail pages, and loads `ANNAS_ARCHIVE_KEY` automatically when `.env` is present.
+- `scripts/download_with_key.sh`
+  Use when authenticated requests are needed and the script should manage the key-backed search and download flow directly.
+- `scripts/download_book.sh`
+  Use as a generic legacy end-to-end fallback if the wrapper is unavailable and a single script should perform search plus download.
+- `scripts/recent_edition_finder.sh`
+  Use when the user explicitly wants the newest available edition.
+- `scripts/exact_match_finder.sh`, `scripts/defensive_finder.sh`, `scripts/rigorous_finder.sh`, `scripts/specific_books_finder.sh`
+  Use for strict matching on known troublesome queries. Prefer them only after `smart_finder.sh` misses or returns ambiguous results.
+- `scripts/basic_finder.sh`, `scripts/simple_book_finder.sh`, `scripts/simple_validated_finder.sh`, `scripts/enhanced_finder.sh`, `scripts/improved_book_finder.sh`, `scripts/intelligent_finder.sh`
+  Treat as older fallback strategies for debugging or experimentation, not the default path.
+- `scripts/simple_downloader.sh`
+  Treat as an older authenticated downloader. Prefer `scripts/download_with_key.sh`.
+- `scripts/queue_writer.sh`
+  Use only when the task explicitly includes updating the separate Alexandria downloads queue repository.
 
-## Key Features
+When running a helper script directly, use:
 
-- **Defensive Validation**: Never returns books that don't match your query
-- **Automatic Format Detection**: Prioritizes PDF, falls back to available format
-- **Clean Filenames**: Generates safe filenames from book titles
-- **Progress Display**: Shows download progress and file size
+```bash
+./scripts/<name>.sh "<query>" [output_dir]
+```
 
-## Download Location
+## Query Rules
 
-Files are saved to: `~/Downloads/`
+- Include author and edition information in the single query string when known.
+- Prefer exact title plus author for ambiguous books.
+- Include a year or format only when the user cares about a specific edition.
+- Reject weak matches instead of downloading the wrong book.
 
-## Dependencies
+## Output and Environment
 
-- curl (for HTTP requests and downloads)
-- Standard Unix tools (grep, sed, awk)
-- Optional subscription key for authenticated requests (see below)
+- `book-downloader` downloads files to `~/Downloads/`.
+- Most helper scripts, when run directly, accept `[output_dir]` as the second argument and otherwise default to `$HOME/.claude/downloads/`.
+- Place `ANNAS_ARCHIVE_KEY=...` in `<skill-dir>/.env` to enable authenticated requests. `scripts/smart_finder.sh`, `scripts/download_with_key.sh`, and `scripts/simple_downloader.sh` load it automatically.
 
-## Subscription Key (Optional)
+## URL Pattern
 
-To use an Anna's Archive subscription key for authenticated requests:
+Preserve the detail-to-download transformation:
 
-1. Create a `.env` file:
-   ```bash
-   echo "ANNAS_ARCHIVE_KEY=your_key_here" > ~/.claude/skills/book-downloader/.env
-   ```
+- Detail page: `https://annas-archive.gl/md5/{hash}`
+- Fast download: `https://annas-archive.gl/fast_download/{hash}/0/0`
 
-2. The skill will automatically load and use this key
+Only fall back to a manual MD5 link when a direct download fails or a specialized script intentionally returns a reference link instead of downloading.
 
 ## Example
 
-/skill book-downloader "Brain Surgery Made Simple" Noel Quinn
-
-Output:
-```
-[time] Searching for: Brain Surgery Made Simple Noel Quinn
-...
-Found book: Brain Surgery Made Simple - Noel Quinn (2020)
-Download link: https://annas-archive.gl/md5/e10d116e6dc99a0525d18f706d75951c
-
-Fast download URL: https://annas-archive.gl/fast_download/e10d126e6dc99a0525d18f70dd75951d/0/0
-
-Downloading: Brain_Surgery_Made_Simple.pdf
-  % Total    % Received % Xfer L  Average Speed   Time    Time     Time  Current
-100  152k    0   152k  0     0   101k      0 --:--:--  0:00:01 --:--:--  101k
-
-✓ Downloaded successfully: Brain_Surgery_Made_Simple.pdf (152K)
-Location: ~/Downloads/
+```bash
+./book-downloader "Brain Surgery Made Simple Noel Quinn"
 ```
 
-## Known Limitations
+Expected flow:
 
-- Some books may not be available on Anna's Archive
-- Download requires active internet connection
+1. `scripts/smart_finder.sh` prints a validated `Download link: https://annas-archive.../md5/{hash}` line.
+2. `book-downloader` converts that MD5 link into the fast download URL.
+3. `book-downloader` saves the file in `~/Downloads/` and prints the final filename.
