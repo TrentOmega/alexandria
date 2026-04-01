@@ -20,8 +20,8 @@ Alexandria is a book download automation system that helps users find and downlo
 **What it does**:
 1. Searches Anna's Archive (gl, pk, gd domains)
 2. Validates the found book matches the query
-3. Transforms MD5 URL to fast download URL: `/md5/{hash}` → `/fast_download/{hash}/0/0`
-4. Downloads the PDF directly to `~/Downloads/`
+3. Resolves the MD5 detail page to an actual PDF or EPUB download URL
+4. Downloads the file directly to `~/Downloads/`
 
 **Output**:
 - Book downloaded to `~/Downloads/`
@@ -60,15 +60,15 @@ User Request
     ↓
 /skill book-downloader "Book Title by Author"
     ↓
-Search Anna's Archive → Validate → Transform URL → Download
+Search Anna's Archive → Validate → Resolve detail page → Download
     ↓
 ~/Downloads/
 ```
 
 ## Key Patterns
 
-1. **URL Transformation**: `/md5/{hash}` → `/fast_download/{hash}/0/0`
-2. **Direct Download**: Let the wrapper derive and fetch the fast download URL
+1. **Fallback URL Transformation**: `/md5/{hash}` → `/fast_download/{hash}/0/0`
+2. **Download Resolution**: Prefer resolving the detail page to an actual PDF/EPUB link; use `fast_download` only as fallback
 3. **Validation**: Skill handles title/author matching - don't duplicate
 4. **Entry Point**: Prefer `book-downloader`; use `scripts/*.sh` only for targeted debugging or special cases
 

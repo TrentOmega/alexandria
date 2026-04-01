@@ -1,6 +1,6 @@
 ---
 name: book-downloader
-description: Search Anna's Archive mirror domains (`gl`, `pk`, `gd`) for a requested book, validate the result against the requested title, author, or edition, convert `/md5/{hash}` detail URLs to `/fast_download/{hash}/0/0`, and download the file to `~/Downloads/`. Use when The Agent needs to find or download a book from Anna's Archive, or when a user asks for a book by title, author, edition, or Anna's Archive link.
+description: Search Anna's Archive mirror domains (`gl`, `pk`, `gd`) for a requested book, validate the result against the requested title, author, or edition, resolve the `/md5/{hash}` detail page to an actual PDF or EPUB download URL, and save the file to `~/Downloads/`. Use when The Agent needs to find or download a book from Anna's Archive, or when a user asks for a book by title, author, edition, or Anna's Archive link.
 ---
 
 # Book Downloader
@@ -18,7 +18,7 @@ Pass a single query string. Do not pass the author as a separate positional argu
 
 1. Run `./book-downloader "<query>"`.
 2. Let it call `scripts/smart_finder.sh` to search Anna's Archive and validate the match.
-3. Let the wrapper transform the returned MD5 URL from `/md5/{hash}` to `/fast_download/{hash}/0/0`.
+3. Let the wrapper resolve the returned MD5 detail page into an actual mirror or file URL.
 4. Let the wrapper download the file to `~/Downloads/`.
 
 Use the bundled scripts instead of reimplementing Anna's Archive scraping or URL construction ad hoc.
@@ -26,7 +26,7 @@ Use the bundled scripts instead of reimplementing Anna's Archive scraping or URL
 ## Bundled Resources
 
 - `book-downloader`
-  Use as the primary end-to-end wrapper. It runs `scripts/smart_finder.sh`, prints the validated MD5 URL, derives the fast download URL, and downloads the file to `~/Downloads/`.
+  Use as the primary end-to-end wrapper. It runs `scripts/smart_finder.sh`, resolves the validated MD5 detail page to a real download URL, rejects HTML/challenge pages, and downloads the file to `~/Downloads/`.
 - `scripts/smart_finder.sh`
   Use as the default finder. It handles known problematic titles, validates detail pages, and loads `ANNAS_ARCHIVE_KEY` automatically when `.env` is present.
 - `scripts/download_with_key.sh`
@@ -65,12 +65,14 @@ When running a helper script directly, use:
 
 ## URL Pattern
 
-Preserve the detail-to-download transformation:
+Preserve the MD5 detail-page workflow:
 
 - Detail page: `https://annas-archive.gl/md5/{hash}`
 - Fast download: `https://annas-archive.gl/fast_download/{hash}/0/0`
 
-Only fall back to a manual MD5 link when a direct download fails or a specialized script intentionally returns a reference link instead of downloading.
+Prefer resolving the detail page to a real mirror or file URL. Use the `fast_download` pattern only as a fallback if no direct PDF or EPUB link can be extracted.
+
+Only fall back to a manual MD5 link when direct download resolution fails or a specialized script intentionally returns a reference link instead of downloading.
 
 ## Example
 
@@ -81,5 +83,5 @@ Only fall back to a manual MD5 link when a direct download fails or a specialize
 Expected flow:
 
 1. `scripts/smart_finder.sh` prints a validated `Download link: https://annas-archive.../md5/{hash}` line.
-2. `book-downloader` converts that MD5 link into the fast download URL.
-3. `book-downloader` saves the file in `~/Downloads/` and prints the final filename.
+2. `book-downloader` resolves that detail page to an actual download URL.
+3. `book-downloader` rejects HTML/challenge pages and saves the PDF or EPUB in `~/Downloads/`.
