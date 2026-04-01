@@ -1,1 +1,5 @@
 .env
+anna_cookies.txt
+.venv
+__pycache__/
+tests/__pycache__/

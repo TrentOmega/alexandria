@@ -20,8 +20,8 @@ Alexandria is a book download automation system that helps users find and downlo
 **What it does**:
 1. Searches Anna's Archive (gl, pk, gd domains)
 2. Validates the found book matches the query
-3. Resolves the MD5 detail page to an actual PDF or EPUB download URL
-4. Downloads the file directly to `~/Downloads/`
+3. Opens the validated MD5 detail page in a real Chrome session through Playwright
+4. Follows the browser download flow and saves the file to `~/Downloads/`
 
 **Output**:
 - Book downloaded to `~/Downloads/`
@@ -32,7 +32,9 @@ Alexandria is a book download automation system that helps users find and downlo
 - The skill handles all validation and defensive checks
 - Pass a single query string; the wrapper does not accept author as a separate positional argument
 - Prefer the `book-downloader` wrapper over calling helper scripts directly
-- Set `ANNAS_ARCHIVE_COOKIE_JAR` in `book-downloader/.env` to reuse cookies exported from Firefox
+- Default backend: `ANNAS_DOWNLOADER_BACKEND=playwright`
+- Install the browser backend with `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`, and `.venv/bin/playwright install chrome`
+- Set `ANNAS_ARCHIVE_COOKIE_JAR` in `book-downloader/.env` only for the legacy `curl` backend
 - Treat DDoS-Guard or challenge HTML as a hard failure, not as a valid download
 
 ## File Locations
@@ -62,15 +64,15 @@ User Request
     ↓
 /skill book-downloader "Book Title by Author"
     ↓
-Search Anna's Archive → Validate → Resolve detail page → Download
+Search Anna's Archive → Validate → Open detail page in Chrome → Browser download
     ↓
 ~/Downloads/
 ```
 
 ## Key Patterns
 
-1. **Fallback URL Transformation**: `/md5/{hash}` → `/fast_download/{hash}/0/0`
-2. **Download Resolution**: Prefer resolving the detail page to an actual PDF/EPUB link; use `fast_download` only as fallback
+1. **Primary Backend**: Prefer the Playwright + Chrome backend for all normal downloads
+2. **Legacy Fallback**: Use `ANNAS_DOWNLOADER_BACKEND=curl` only when browser automation is unavailable
 3. **Validation**: Skill handles title/author matching - don't duplicate
 4. **Entry Point**: Prefer `book-downloader`; use `scripts/*.sh` only for targeted debugging or special cases
 
@@ -82,12 +84,15 @@ Search Anna's Archive → Validate → Resolve detail page → Download
 
 ## Dependencies
 
-- curl (required)
-- Standard Unix tools (grep, sed, awk)
+- python3 (required)
+- Google Chrome (required)
+- Playwright Python package (required for default backend)
+- curl and standard Unix tools (required for legacy backend)
 - Optional: ANNAS_ARCHIVE_KEY in `book-downloader/.env`
-- Optional: ANNAS_ARCHIVE_COOKIE_JAR in `book-downloader/.env`
+- Optional: ANNAS_ARCHIVE_COOKIE_JAR in `book-downloader/.env` for the legacy backend
+- Optional: ANNAS_BROWSER_* settings in `book-downloader/.env` for browser automation tuning
 
 ## See Also
 
 - `book-downloader/SKILL.md` - Skill documentation
-- `book-downloader/extension/README.md` - Firefox extension docs
+- `book-downloader/requirements.txt` - Python dependency list
