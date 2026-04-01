@@ -1,6 +1,11 @@
 #!/bin/bash
 # Recent edition finder - prioritizes most recent versions
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
+
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
 
@@ -11,6 +16,7 @@ log() {
 }
 
 log "Searching for MOST RECENT edition of: $QUERY"
+aa_describe_request_context
 
 # Define search strategies for recent editions
 case "$QUERY" in
@@ -43,7 +49,8 @@ for SEARCH_TERM in "${SEARCH_TERMS[@]}"; do
     for domain in $DOMAINS; do
         URL="https://${domain}/search?q=${SEARCH_TERM}"
         
-        RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+        RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null)
+        aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
         
         if echo "$RESPONSE" | grep "line-clamp-\[2\] overflow-hidden break-words text-\[9px\] text-gray-500 font-mono" >/dev/null 2>&1; then
             # Get first result
@@ -54,7 +61,8 @@ for SEARCH_TERM in "${SEARCH_TERMS[@]}"; do
                 DETAIL_URL="https://${domain}${DETAIL_PATH}"
                 
                 # Check the year on the detail page
-                DETAIL_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$DETAIL_URL" 2>/dev/null)
+                DETAIL_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null)
+                aa_exit_on_challenge_text "$DETAIL_PAGE" "fetching detail page ${DETAIL_URL}"
                 YEAR=$(echo "$DETAIL_PAGE" | grep -o "20[0-2][0-9]" | sort -u | tail -1)
                 
                 log "Book year detected: $YEAR"

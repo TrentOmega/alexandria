@@ -2,6 +2,11 @@
 # Download workflow with subscription key support
 # Note: Key authenticates user but DDoS-Guard may still require browser
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
+
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
 
@@ -11,22 +16,14 @@ log() {
     echo "[$(date 2>/dev/null || echo "time")] $*" >&2
 }
 
-# Load subscription key
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/../.env" ]; then
-    set -a
-    source "$SCRIPT_DIR/../.env"
-    set +a
-fi
-
-if [ -z "$ANNAS_ARCHIVE_KEY" ]; then
+if [ -z "${ANNAS_ARCHIVE_KEY:-}" ]; then
     log "ERROR: No ANNAS_ARCHIVE_KEY found in .env"
     log "Please add your key to: $SCRIPT_DIR/../.env"
     exit 1
 fi
 
-log "Using authenticated requests with subscription key"
 log "Searching for: $QUERY"
+aa_describe_request_context
 
 # First, find the book using authenticated search
 SEARCH_TERM=$(echo "$QUERY" | sed 's/ /+/g')
@@ -36,10 +33,8 @@ for domain in $DOMAINS; do
     URL="https://${domain}/search?q=${SEARCH_TERM}"
     log "Searching: $domain"
 
-    RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 \
-        -H "Authorization: Bearer $ANNAS_ARCHIVE_KEY" \
-        -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-        "$URL" 2>/dev/null)
+    RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null)
+    aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
 
     if echo "$RESPONSE" | grep "line-clamp-\[2\] overflow-hidden break-words text-\[9px\] text-gray-500 font-mono" >/dev/null 2>&1; then
         # Validate first few results
@@ -49,10 +44,8 @@ for domain in $DOMAINS; do
             DETAIL_URL="https://${domain}${PATH}"
 
             # Get detail page with auth
-            DETAIL_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 \
-                -H "Authorization: Bearer $ANNAS_ARCHIVE_KEY" \
-                -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-                "$DETAIL_URL" 2>/dev/null)
+            DETAIL_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null)
+            aa_exit_on_challenge_text "$DETAIL_PAGE" "fetching detail page ${DETAIL_URL}"
 
             TITLE=$(echo "$DETAIL_PAGE" | grep -i "<title>" | sed 's/.*<title>//;s/<\/title>.*//')
 
@@ -85,51 +78,39 @@ for domain in $DOMAINS; do
 
                     # Note: Even with auth key, DDoS-Guard may block
                     # The key helps but doesn't bypass all protection
-                    CODES_PAGE=$(curl -sS -L --connect-timeout 15 --max-time 45 \
-                        -H "Authorization: Bearer $ANNAS_ARCHIVE_KEY" \
-                        -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-                        "$CODES_URL" 2>/dev/null)
+                    CODES_PAGE=$(aa_curl -sS -L --connect-timeout 15 --max-time 45 "$CODES_URL" 2>/dev/null)
+                    aa_exit_on_challenge_text "$CODES_PAGE" "fetching mirror selection page ${CODES_URL}"
 
-                    # Check if we got DDoS protection
-                    if echo "$CODES_PAGE" | grep -i "ddos-guard\|checking your browser" >/dev/null 2>&1; then
-                        log "WARNING: DDoS protection active - manual download required"
-                        echo ""
-                        echo "Book found: $TITLE"
-                        echo "Manual download link: $DETAIL_URL"
-                        echo ""
-                        echo "The subscription key authenticates you but DDoS-Guard"
-                        echo "requires browser access. Please click the link above"
-                        echo "to download manually."
-                    else
-                        # Look for direct download links
-                        DL_LINK=$(echo "$CODES_PAGE" | grep -oE 'https?://[^"<>\s]+\.(pdf|epub)' | head -1)
+                    # Look for direct download links
+                    DL_LINK=$(echo "$CODES_PAGE" | grep -oE 'https?://[^"<>\s]+\.(pdf|epub)' | head -1)
 
-                        if [ -n "$DL_LINK" ]; then
-                            log "Found direct download: $DL_LINK"
+                    if [ -n "$DL_LINK" ]; then
+                        log "Found direct download: $DL_LINK"
 
-                            # Download the file
-                            FILENAME=$(echo "$TITLE" | sed 's/[\/:*?"<>|]/_/g').pdf
-                            OUTPUT_PATH="${OUTPUT_DIR}/${FILENAME}"
+                        # Download the file
+                        FILENAME=$(echo "$TITLE" | sed 's/[\/:*?"<>|]/_/g').pdf
+                        OUTPUT_PATH="${OUTPUT_DIR}/${FILENAME}"
 
-                            log "Downloading to: $OUTPUT_PATH"
-                            curl -L --connect-timeout 30 --max-time 300 \
-                                -H "Authorization: Bearer $ANNAS_ARCHIVE_KEY" \
-                                -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-                                -o "$OUTPUT_PATH" \
-                                "$DL_LINK" 2>/dev/null
+                        log "Downloading to: $OUTPUT_PATH"
+                        aa_curl -L --connect-timeout 30 --max-time 300 -o "$OUTPUT_PATH" "$DL_LINK" 2>/dev/null
 
-                            if [ -f "$OUTPUT_PATH" ] && [ -s "$OUTPUT_PATH" ]; then
-                                FILE_SIZE=$(stat -c%s "$OUTPUT_PATH" 2>/dev/null)
-                                if [ "$FILE_SIZE" -gt 10000 ]; then
-                                    log "✓ Download successful: $FILE_SIZE bytes"
-                                    echo "Downloaded: $OUTPUT_PATH"
-                                    exit 0
-                                fi
+                        if [ -f "$OUTPUT_PATH" ] && [ -s "$OUTPUT_PATH" ]; then
+                            if aa_is_challenge_file "$OUTPUT_PATH"; then
+                                rm -f "$OUTPUT_PATH"
+                                aa_print_challenge_help "downloading ${DL_LINK}"
+                                exit 2
                             fi
 
-                            log "Download may have failed, file too small"
-                            rm -f "$OUTPUT_PATH"
+                            FILE_SIZE=$(stat -c%s "$OUTPUT_PATH" 2>/dev/null)
+                            if [ "$FILE_SIZE" -gt 10000 ]; then
+                                log "✓ Download successful: $FILE_SIZE bytes"
+                                echo "Downloaded: $OUTPUT_PATH"
+                                exit 0
+                            fi
                         fi
+
+                        log "Download may have failed, file too small"
+                        rm -f "$OUTPUT_PATH"
                     fi
                 fi
 

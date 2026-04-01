@@ -26,9 +26,9 @@ Use the bundled scripts instead of reimplementing Anna's Archive scraping or URL
 ## Bundled Resources
 
 - `book-downloader`
-  Use as the primary end-to-end wrapper. It runs `scripts/smart_finder.sh`, resolves the validated MD5 detail page to a real download URL, rejects HTML/challenge pages, and downloads the file to `~/Downloads/`.
+  Use as the primary end-to-end wrapper. It runs `scripts/smart_finder.sh`, resolves the validated MD5 detail page to a real download URL, reuses an exported browser cookie jar when configured, rejects DDoS-Guard/challenge pages, and downloads the file to `~/Downloads/`.
 - `scripts/smart_finder.sh`
-  Use as the default finder. It handles known problematic titles, validates detail pages, and loads `ANNAS_ARCHIVE_KEY` automatically when `.env` is present.
+  Use as the default finder. It handles known problematic titles, validates detail pages, and loads Anna's Archive auth and cookie settings automatically from `.env`.
 - `scripts/download_with_key.sh`
   Use when authenticated requests are needed and the script should manage the key-backed search and download flow directly.
 - `scripts/download_book.sh`
@@ -61,7 +61,9 @@ When running a helper script directly, use:
 
 - `book-downloader` downloads files to `~/Downloads/`.
 - Most helper scripts, when run directly, accept `[output_dir]` as the second argument and otherwise default to `$HOME/.claude/downloads/`.
-- Place `ANNAS_ARCHIVE_KEY=...` in `<skill-dir>/.env` to enable authenticated requests. `scripts/smart_finder.sh`, `scripts/download_with_key.sh`, and `scripts/simple_downloader.sh` load it automatically.
+- Place `ANNAS_ARCHIVE_KEY=...` in `<skill-dir>/.env` to enable authenticated requests.
+- Place `ANNAS_ARCHIVE_COOKIE_JAR=/absolute/path/to/anna_cookies.txt` in `<skill-dir>/.env` to reuse cookies exported from Firefox. Use a Netscape-format cookie file.
+- The wrapper and the networked helper scripts load these settings automatically.
 
 ## URL Pattern
 
@@ -71,6 +73,8 @@ Preserve the MD5 detail-page workflow:
 - Fast download: `https://annas-archive.gl/fast_download/{hash}/0/0`
 
 Prefer resolving the detail page to a real mirror or file URL. Use the `fast_download` pattern only as a fallback if no direct PDF or EPUB link can be extracted.
+
+If the site returns a DDoS-Guard or challenge page, fail explicitly instead of treating the HTML as a book file.
 
 Only fall back to a manual MD5 link when direct download resolution fails or a specialized script intentionally returns a reference link instead of downloading.
 
@@ -83,5 +87,5 @@ Only fall back to a manual MD5 link when direct download resolution fails or a s
 Expected flow:
 
 1. `scripts/smart_finder.sh` prints a validated `Download link: https://annas-archive.../md5/{hash}` line.
-2. `book-downloader` resolves that detail page to an actual download URL.
-3. `book-downloader` rejects HTML/challenge pages and saves the PDF or EPUB in `~/Downloads/`.
+2. `book-downloader` resolves that detail page to an actual download URL and uses the configured cookie jar if present.
+3. `book-downloader` rejects DDoS-Guard/challenge pages and saves the PDF or EPUB in `~/Downloads/`.

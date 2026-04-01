@@ -1,6 +1,11 @@
 #!/bin/bash
 # Simple downloader that works with limited commands
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
+
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
 
@@ -8,18 +13,12 @@ mkdir -p "$OUTPUT_DIR" 2>/dev/null || true
 
 echo "[$(date)] Searching for: $QUERY"
 
-# Load key
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -f "$SCRIPT_DIR/../.env" ]; then
-    source "$SCRIPT_DIR/../.env"
-fi
-
-if [ -z "$ANNAS_ARCHIVE_KEY" ]; then
+if [ -z "${ANNAS_ARCHIVE_KEY:-}" ]; then
     echo "ERROR: Add ANNAS_ARCHIVE_KEY to $SCRIPT_DIR/../.env"
     exit 1
 fi
 
-echo "Using authenticated requests"
+aa_describe_request_context
 
 # Search for the book
 SEARCH_TERM=$(echo "$QUERY" | sed 's/ /+/g')
@@ -28,9 +27,8 @@ for domain in annas-archive.gl annas-archive.gd; do
     URL="https://${domain}/search?q=${SEARCH_TERM}"
     echo "Trying: $domain"
 
-    RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 \
-        -H "Authorization: Bearer $ANNAS_ARCHIVE_KEY" \
-        -A "Mozilla/5.0" "$URL" 2>/dev/null)
+    RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null)
+    aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
 
     # Try to get first result
     DETAIL_PATH=$(echo "$RESPONSE" | sed -n 's/.*href="\/md5\/\([^"]*\)".*/\1/p' | head -1)
@@ -40,10 +38,9 @@ for domain in annas-archive.gl annas-archive.gd; do
         echo "Found detail page: $DETAIL_URL"
 
         # Get title
-        TITLE=$(curl -sS --connect-timeout 10 --max-time 30 \
-            -H "Authorization: Bearer $ANNAS_ARCHIVE_KEY" \
-            -A "Mozilla/5.0" "$DETAIL_URL" 2>/dev/null | \
-            sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p')
+        DETAIL_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null)
+        aa_exit_on_challenge_text "$DETAIL_PAGE" "fetching detail page ${DETAIL_URL}"
+        TITLE=$(echo "$DETAIL_PAGE" | sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p')
 
         echo "Book title: $TITLE"
 
@@ -56,14 +53,17 @@ for domain in annas-archive.gl annas-archive.gd; do
         echo "Attempting fast download..."
 
         OUTPUT_FILE="$OUTPUT_DIR/book_${DETAIL_PATH}.pdf"
-        curl -L --connect-timeout 30 --max-time 300 \
-            -H "Authorization: Bearer $ANNAS_ARCHIVE_KEY" \
-            -A "Mozilla/5.0" \
+        aa_curl -L --connect-timeout 30 --max-time 300 \
             -o "$OUTPUT_FILE" \
             "$FAST_URL" 2>/dev/null
 
         # Check if it worked
         if [ -f "$OUTPUT_FILE" ]; then
+            if aa_is_challenge_file "$OUTPUT_FILE"; then
+                rm -f "$OUTPUT_FILE"
+                aa_print_challenge_help "downloading ${FAST_URL}"
+                exit 2
+            fi
             SIZE=$(stat -c%s "$OUTPUT_FILE" 2>/dev/null || echo "0")
             if [ "$SIZE" -gt 100000 ]; then
                 echo "✓ Downloaded: $OUTPUT_FILE ($SIZE bytes)"

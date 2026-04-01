@@ -32,6 +32,8 @@ Alexandria is a book download automation system that helps users find and downlo
 - The skill handles all validation and defensive checks
 - Pass a single query string; the wrapper does not accept author as a separate positional argument
 - Prefer the `book-downloader` wrapper over calling helper scripts directly
+- Set `ANNAS_ARCHIVE_COOKIE_JAR` in `book-downloader/.env` to reuse cookies exported from Firefox
+- Treat DDoS-Guard or challenge HTML as a hard failure, not as a valid download
 
 ## File Locations
 
@@ -83,6 +85,7 @@ Search Anna's Archive → Validate → Resolve detail page → Download
 - curl (required)
 - Standard Unix tools (grep, sed, awk)
 - Optional: ANNAS_ARCHIVE_KEY in `book-downloader/.env`
+- Optional: ANNAS_ARCHIVE_COOKIE_JAR in `book-downloader/.env`
 
 ## See Also
 

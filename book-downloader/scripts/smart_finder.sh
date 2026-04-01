@@ -9,13 +9,10 @@
 # 6. Be defensive - reject results that don't match rather than return wrong books
 # 7. Use subscription key if available
 
-# Load subscription key from .env if available
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/../.env" ]; then
-    set -a
-    source "$SCRIPT_DIR/../.env"
-    set +a
-fi
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
 
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
@@ -27,17 +24,7 @@ log() {
 }
 
 log "Searching for: $QUERY"
-[ -n "${ANNAS_ARCHIVE_KEY:-}" ] && log "Using authenticated requests"
-QUERY="$1"
-OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
-
-mkdir -p "$OUTPUT_DIR" 2>/dev/null || true
-
-log() {
-    echo "[$(date 2>/dev/null || echo "time")] $*" >&2
-}
-
-log "Searching for: $QUERY"
+aa_describe_request_context
 
 # =============================================================================
 # BOOK-SPECIFIC HANDLING
@@ -63,7 +50,11 @@ elif echo "$QUERY" | grep -i "let.*it.*go.*walsh\|peter.*walsh" >/dev/null 2>&1;
 
         for domain in annas-archive.gl annas-archive.pk annas-archive.gd; do
             URL="https://${domain}/search?q=${SEARCH_TERM}"
-            RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+            if ! RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null); then
+                log "Failed to connect to $domain"
+                continue
+            fi
+            aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
 
             # Get ALL results and validate each one
             PATHS=$(echo "$RESPONSE" | grep -o 'href="/md5/[^"]*"' | cut -d'"' -f2 | head -5)
@@ -73,7 +64,11 @@ elif echo "$QUERY" | grep -i "let.*it.*go.*walsh\|peter.*walsh" >/dev/null 2>&1;
                     DETAIL_URL="https://${domain}${PATH}"
 
                     # Fetch and validate the detail page
-                    DETAIL_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$DETAIL_URL" 2>/dev/null)
+                    if ! DETAIL_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null); then
+                        log "Failed to fetch detail page: $DETAIL_URL"
+                        continue
+                    fi
+                    aa_exit_on_challenge_text "$DETAIL_PAGE" "fetching detail page ${DETAIL_URL}"
                     TITLE=$(echo "$DETAIL_PAGE" | grep -i "<title>" | sed 's/.*<title>//;s/<\/title>.*//')
 
                     log "Checking: $TITLE"
@@ -108,7 +103,11 @@ elif echo "$QUERY" | grep -i "selling.*house.*bray\|ilona.*bray\|nolo.*bray" >/d
 
     # Verify it's still valid
     log "Verifying known 2023 edition..."
-    VERIFY=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$VERIFIED_2023" 2>/dev/null)
+    if ! VERIFY=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$VERIFIED_2023" 2>/dev/null); then
+        log "Failed to fetch known detail page: $VERIFIED_2023"
+        VERIFY=""
+    fi
+    aa_exit_on_challenge_text "$VERIFY" "verifying known detail page ${VERIFIED_2023}"
 
     if echo "$VERIFY" | grep -i "nolo.*essential\|selling.*house" >/dev/null 2>&1 && \
        echo "$VERIFY" | grep -i "bray" >/dev/null 2>&1; then
@@ -128,7 +127,11 @@ elif echo "$QUERY" | grep -i "selling.*house.*bray\|ilona.*bray\|nolo.*bray" >/d
     # Search for 5th edition specifically
     for domain in annas-archive.gl annas-archive.pk annas-archive.gd; do
         URL="https://${domain}/search?q=Selling+Your+House+Nolo+5th+edition+Bray"
-        RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+        if ! RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null); then
+            log "Failed to connect to $domain"
+            continue
+        fi
+        aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
 
         # Look for 5th edition marker
         if echo "$RESPONSE" | grep "5th edition" >/dev/null 2>&1; then
@@ -137,7 +140,11 @@ elif echo "$QUERY" | grep -i "selling.*house.*bray\|ilona.*bray\|nolo.*bray" >/d
                 DETAIL_URL="https://${domain}${PATH}"
 
                 # Verify
-                VERIFY2=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$DETAIL_URL" 2>/dev/null)
+                if ! VERIFY2=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null); then
+                    log "Failed to fetch detail page: $DETAIL_URL"
+                    continue
+                fi
+                aa_exit_on_challenge_text "$VERIFY2" "fetching detail page ${DETAIL_URL}"
                 if echo "$VERIFY2" | grep -i "nolo\|bray" >/dev/null 2>&1; then
                     log "✓ FOUND 5th edition via search"
                     echo "Found book: Selling Your House: Nolo's Essential Guide - Ilona Bray (5th edition, 2023)"
@@ -165,12 +172,18 @@ log "=== GENERIC SEARCH: Using defensive approach ==="
 
 SEARCH_TERM=$(echo "$QUERY" | sed 's/ /+/g')
 DOMAINS="annas-archive.gl annas-archive.pk annas-archive.gd"
+ANY_DOMAIN_REACHED=false
 
 for domain in $DOMAINS; do
     URL="https://${domain}/search?q=${SEARCH_TERM}"
     log "Trying: $domain"
 
-    RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+    if ! RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null); then
+        log "Failed to connect to $domain"
+        continue
+    fi
+    ANY_DOMAIN_REACHED=true
+    aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
 
     if echo "$RESPONSE" | grep "line-clamp-\[2\] overflow-hidden break-words text-\[9px\] text-gray-500 font-mono" >/dev/null 2>&1; then
         # Get first 3 results and check each one
@@ -178,7 +191,11 @@ for domain in $DOMAINS; do
 
         for PATH in $PATHS; do
             DETAIL_URL="https://${domain}${PATH}"
-            DETAIL_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$DETAIL_URL" 2>/dev/null)
+            if ! DETAIL_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null); then
+                log "Failed to fetch detail page: $DETAIL_URL"
+                continue
+            fi
+            aa_exit_on_challenge_text "$DETAIL_PAGE" "fetching detail page ${DETAIL_URL}"
             TITLE=$(echo "$DETAIL_PAGE" | grep -i "<title>" | sed 's/.*<title>//;s/<\/title>.*//')
 
             log "Validating: $TITLE"
@@ -204,6 +221,11 @@ for domain in $DOMAINS; do
         done
     fi
 done
+
+if [ "$ANY_DOMAIN_REACHED" != true ]; then
+    log "ERROR: Could not reach any configured Anna's Archive domains."
+    exit 1
+fi
 
 log "ERROR: No valid matches found after defensive validation"
 exit 1

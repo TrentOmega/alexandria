@@ -2,6 +2,11 @@
 set -eu
 set +o pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
+
 # Usage: download_book.sh "<book query>" [output_directory]
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
@@ -33,6 +38,7 @@ ENCODED_QUERY=$(echo "$QUERY" | sed 's/ /+/g')
 DOMAINS=("annas-archive.gl" "annas-archive.pk" "annas-archive.gd")
 
 log "Searching for book: $QUERY"
+aa_describe_request_context
 
 SEARCH_URL=""
 SEARCH_RESULTS=""
@@ -45,7 +51,8 @@ for domain in "${DOMAINS[@]}"; do
     retry_count=0
     max_retries=3
     while [[ $retry_count -lt $max_retries ]]; do
-        if RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$URL" 2>/dev/null); then
+        if RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null); then
+            aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
             log "Got response from $domain (length: ${#RESPONSE} characters)"
             # Check for results indicator (file type line from search results)
             echo "$RESPONSE" | grep "line-clamp-\[2\] overflow-hidden break-words text-\[9px\] text-gray-500 font-mono" >/dev/null 2>&1
@@ -101,7 +108,8 @@ retry_count=0
 max_retries=3
 DETAIL_PAGE=""
 while [[ $retry_count -lt $max_retries ]]; do
-    if DETAIL_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null); then
+    if DETAIL_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$DETAIL_URL" 2>/dev/null); then
+        aa_exit_on_challenge_text "$DETAIL_PAGE" "fetching detail page ${DETAIL_URL}"
         break
     else
         retry_count=$((retry_count+1))
@@ -132,22 +140,8 @@ if [[ -n "$MEMBER_CODES_PATH" ]]; then
     retry_count=0
     MIRRORS_PAGE=""
     while [[ $retry_count -lt $max_retries ]]; do
-        if MIRRORS_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$MEMBER_CODES_URL" 2>/dev/null); then
-            # Check if we got a DDoS protection page
-            if echo "$MIRRORS_PAGE" | grep -q "ddos-guard\|DDOS\|challenge"; then
-                log "Hit DDoS protection page, trying to follow redirect..."
-                # Try to extract the redirect URL
-                REDIRECT_URL=$(echo "$MIRRORS_PAGE" | grep -o 'href="[^"]*"' | grep "/codes/" | head -1 | cut -d'"' -f2)
-                if [[ -n "$REDIRECT_URL" ]]; then
-                    if [[ "$REDIRECT_URL" == /* ]]; then
-                        REDIRECT_URL="https://${DOMAIN}${REDIRECT_URL}"
-                    fi
-                    log "Following redirect to: $REDIRECT_URL"
-                    MIRRORS_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$REDIRECT_URL" 2>/dev/null)
-                else
-                    log "Could not extract redirect URL from DDoS page"
-                fi
-            fi
+        if MIRRORS_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$MEMBER_CODES_URL" 2>/dev/null); then
+            aa_exit_on_challenge_text "$MIRRORS_PAGE" "fetching mirror selection page ${MEMBER_CODES_URL}"
             break
         else
             retry_count=$((retry_count+1))
@@ -201,7 +195,12 @@ if [[ -n "$MEMBER_CODES_PATH" ]]; then
         sleep 2
         retry_count=0
         while [[ $retry_count -lt $max_retries ]]; do
-            if wget --timeout=60 --tries=1 --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" -O "$OUTPUT_PATH" "$DOWNLOAD_URL" 2>/dev/null; then
+            if aa_curl -L --connect-timeout 60 --max-time 300 -o "$OUTPUT_PATH" "$DOWNLOAD_URL" >/dev/null 2>&1; then
+                if aa_is_challenge_file "$OUTPUT_PATH"; then
+                    rm -f "$OUTPUT_PATH"
+                    aa_print_challenge_help "downloading ${DOWNLOAD_URL}"
+                    exit 2
+                fi
                 # Check if we actually downloaded a file (not an error page)
                 FILE_SIZE=$(stat -c%s "$OUTPUT_PATH" 2>/dev/null || echo "0")
                 if [[ $FILE_SIZE -gt 1000 ]]; then
@@ -272,22 +271,8 @@ if [[ -n "$PDF_LINK" ]]; then
         retry_count=0
         MIRRORS_PAGE=""
         while [[ $retry_count -lt $max_retries ]]; do
-            if MIRRORS_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$MEMBER_CODES_URL" 2>/dev/null); then
-                # Check if we got a DDoS protection page
-                if echo "$MIRRORS_PAGE" | grep -q "ddos-guard\|DDOS\|challenge"; then
-                    log "Hit DDoS protection page, trying to follow redirect..."
-                    # Try to extract the redirect URL
-                    REDIRECT_URL=$(echo "$MIRRORS_PAGE" | grep -o 'href="[^"]*"' | grep "/codes/" | head -1 | cut -d'"' -f2)
-                    if [[ -n "$REDIRECT_URL" ]]; then
-                        if [[ "$REDIRECT_URL" == /* ]]; then
-                            REDIRECT_URL="https://${DOMAIN}${REDIRECT_URL}"
-                        fi
-                        log "Following redirect to: $REDIRECT_URL"
-                        MIRRORS_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$REDIRECT_URL" 2>/dev/null)
-                    else
-                        log "Could not extract redirect URL from DDoS page"
-                    fi
-                fi
+            if MIRRORS_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$MEMBER_CODES_URL" 2>/dev/null); then
+                aa_exit_on_challenge_text "$MIRRORS_PAGE" "fetching mirror selection page ${MEMBER_CODES_URL}"
                 break
             else
                 retry_count=$((retry_count+1))
@@ -330,22 +315,8 @@ elif [[ -n "$EPUB_LINK" ]]; then
         retry_count=0
         MIRRORS_PAGE=""
         while [[ $retry_count -lt $max_retries ]]; do
-            if MIRRORS_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$MEMBER_CODES_URL" 2>/dev/null); then
-                # Check if we got a DDoS protection page
-                if echo "$MIRRORS_PAGE" | grep -q "ddos-guard\|DDOS\|challenge"; then
-                    log "Hit DDoS protection page, trying to follow redirect..."
-                    # Try to extract the redirect URL
-                    REDIRECT_URL=$(echo "$MIRRORS_PAGE" | grep -o 'href="[^"]*"' | grep "/codes/" | head -1 | cut -d'"' -f2)
-                    if [[ -n "$REDIRECT_URL" ]]; then
-                        if [[ "$REDIRECT_URL" == /* ]]; then
-                            REDIRECT_URL="https://${DOMAIN}${REDIRECT_URL}"
-                        fi
-                        log "Following redirect to: $REDIRECT_URL"
-                        MIRRORS_PAGE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$REDIRECT_URL" 2>/dev/null)
-                    else
-                        log "Could not extract redirect URL from DDoS page"
-                    fi
-                fi
+            if MIRRORS_PAGE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$MEMBER_CODES_URL" 2>/dev/null); then
+                aa_exit_on_challenge_text "$MIRRORS_PAGE" "fetching mirror selection page ${MEMBER_CODES_URL}"
                 break
             else
                 retry_count=$((retry_count+1))
@@ -396,7 +367,12 @@ if [[ -n "$DOWNLOAD_LINK" ]]; then
     log "Downloading file to: $OUTPUT_PATH"
     retry_count=0
     while [[ $retry_count -lt $max_retries ]]; do
-        if wget --timeout=30 --tries=1 -O "$OUTPUT_PATH" "$DOWNLOAD_URL" 2>/dev/null; then
+        if aa_curl -L --connect-timeout 30 --max-time 300 -o "$OUTPUT_PATH" "$DOWNLOAD_URL" >/dev/null 2>&1; then
+            if aa_is_challenge_file "$OUTPUT_PATH"; then
+                rm -f "$OUTPUT_PATH"
+                aa_print_challenge_help "downloading ${DOWNLOAD_URL}"
+                exit 2
+            fi
             log "Download completed successfully!"
             echo "$OUTPUT_PATH"
             exit 0

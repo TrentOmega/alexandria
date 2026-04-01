@@ -1,6 +1,11 @@
 #!/bin/bash
 # Defensive finder that only returns exact matches
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
+
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
 
@@ -13,6 +18,7 @@ log() {
 }
 
 log "Searching for book: $QUERY"
+aa_describe_request_context
 
 # Handle each specific book with maximum validation
 if echo "$QUERY" | grep -i "australia.*home.*buying.*guide" | grep -i "sloan" >/dev/null 2>&1; then
@@ -30,7 +36,8 @@ if echo "$QUERY" | grep -i "australia.*home.*buying.*guide" | grep -i "sloan" >/
             URL="https://${domain}/search?q=${SEARCH_TERM}"
             log "Trying domain: $domain"
 
-            RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+            RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null)
+            aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
             RESPONSE_LEN=${#RESPONSE}
             log "Got response from $domain (${RESPONSE_LEN} chars)"
 
@@ -99,7 +106,8 @@ elif echo "$QUERY" | grep -i "selling.*your.*house" | grep -i "nolo\|bray\|ilona
             URL="https://${domain}/search?q=${SEARCH_TERM}"
             log "Trying domain: $domain"
 
-            RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+            RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null)
+            aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
 
             if echo "$RESPONSE" | grep "line-clamp-\[2\] overflow-hidden break-words text-\[9px\] text-gray-500 font-mono" >/dev/null 2>&1; then
                 # Look for 5th edition 2023 specifically
@@ -136,7 +144,8 @@ if [ "$VALID_FOUND" != true ]; then
         URL="https://${domain}/search?q=${SEARCH_TERM}"
         log "Trying domain: $domain"
 
-        RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+        RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null)
+        aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
         RESPONSE_LEN=${#RESPONSE}
         log "Got response from $domain (${RESPONSE_LEN} chars)"
 

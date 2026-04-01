@@ -1,6 +1,11 @@
 #!/bin/bash
 # Improved book downloader that finds books on Anna's Archive and validates title match
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
+
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
 
@@ -61,6 +66,7 @@ ENCODED_QUERY=$(urlencode "$QUERY")
 DOMAINS=("annas-archive.gl" "annas-archive.pk" "annas-archive.gd")
 
 log "Searching for book: $QUERY"
+aa_describe_request_context
 
 SEARCH_URL=""
 SEARCH_RESULTS=""
@@ -69,7 +75,8 @@ for domain in "${DOMAINS[@]}"; do
     URL="https://${domain}/search?q=${ENCODED_QUERY}"
     log "Trying domain: $domain"
 
-    if RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$URL" 2>/dev/null); then
+    if RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null); then
+        aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
         log "Got response from $domain (length: ${#RESPONSE} characters)"
         if echo "$RESPONSE" | grep -q "line-clamp-\[2\] overflow-hidden break-words text-\[9px\] text-gray-500 font-mono"; then
             SEARCH_URL="$URL"

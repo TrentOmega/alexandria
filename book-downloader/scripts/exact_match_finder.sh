@@ -1,6 +1,11 @@
 #!/bin/bash
 # Exact match finder for the three specific books with strict validation
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+aa_load_env "$SCRIPT_DIR/.."
+aa_validate_setup || exit 1
+
 QUERY="$1"
 OUTPUT_DIR="${2:-$HOME/.claude/downloads}"
 
@@ -13,6 +18,7 @@ log() {
 }
 
 log "Searching for book: $QUERY"
+aa_describe_request_context
 
 # Handle each specific book with exact search and validation
 if echo "$QUERY" | grep -i "australia.*home.*buying.*guide" | grep -i "sloan" >/dev/null 2>&1; then
@@ -50,7 +56,8 @@ for domain in $DOMAINS; do
     log "Trying domain: $domain"
 
     # Try to get response
-    RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" "$URL" 2>/dev/null)
+    RESPONSE=$(aa_curl -sS --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null)
+    aa_exit_on_challenge_text "$RESPONSE" "searching ${URL}"
     RESPONSE_LEN=${#RESPONSE}
     log "Got response from $domain (${RESPONSE_LEN} chars)"
 
