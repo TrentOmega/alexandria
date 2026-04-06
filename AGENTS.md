@@ -18,10 +18,10 @@ Alexandria is a book download automation system that helps users find and downlo
 ```
 
 **What it does**:
-1. Searches Anna's Archive (gl, pk, gd domains)
+1. Searches Anna's Archive using the configured active mirrors
 2. Validates the found book matches the query
-3. Opens the validated MD5 detail page in a real Chrome session through Playwright
-4. Follows the browser download flow and saves the file to `~/Downloads/`
+3. Calls the member fast-download API with `ANNAS_ARCHIVE_KEY`
+4. Downloads the resulting file directly to `~/Downloads/`
 
 **Output**:
 - Book downloaded to `~/Downloads/`
@@ -32,8 +32,9 @@ Alexandria is a book download automation system that helps users find and downlo
 - The skill handles all validation and defensive checks
 - Pass a single query string; the wrapper does not accept author as a separate positional argument
 - Prefer the `book-downloader` wrapper over calling helper scripts directly
-- Default backend: `ANNAS_DOWNLOADER_BACKEND=playwright`
-- Install the browser backend with `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`, and `.venv/bin/playwright install chrome`
+- Default backend: `ANNAS_DOWNLOADER_BACKEND=api`
+- The native backend uses live HTML search plus the member API for final downloads
+- Playwright remains available only as a legacy fallback via `ANNAS_DOWNLOADER_BACKEND=playwright`
 - Set `ANNAS_ARCHIVE_COOKIE_JAR` in `book-downloader/.env` only for the legacy `curl` backend
 - Treat DDoS-Guard or challenge HTML as a hard failure, not as a valid download
 
@@ -55,8 +56,8 @@ Alexandria is a book download automation system that helps users find and downlo
 ```
 
 ### URL Pattern
-MD5 URL: `https://annas-archive.gl/md5/{hash}`
-Fast Download: `https://annas-archive.gl/fast_download/{hash}/0/0`
+MD5 URL: `https://annas-archive.gd/md5/{hash}`
+Member API: `https://annas-archive.gd/dyn/api/fast_download.json?md5={hash}&key=...`
 
 ### Architecture
 ```
@@ -64,15 +65,15 @@ User Request
     ↓
 /skill book-downloader "Book Title by Author"
     ↓
-Search Anna's Archive → Validate → Open detail page in Chrome → Browser download
+Search Anna's Archive → Validate → Resolve member API fast-download URL → Direct download
     ↓
 ~/Downloads/
 ```
 
 ## Key Patterns
 
-1. **Primary Backend**: Prefer the Playwright + Chrome backend for all normal downloads
-2. **Legacy Fallback**: Use `ANNAS_DOWNLOADER_BACKEND=curl` only when browser automation is unavailable
+1. **Primary Backend**: Prefer the native API-first backend for all normal downloads
+2. **Legacy Fallbacks**: Use `ANNAS_DOWNLOADER_BACKEND=playwright` or `ANNAS_DOWNLOADER_BACKEND=curl` only when the default path is unsuitable
 3. **Validation**: Skill handles title/author matching - don't duplicate
 4. **Entry Point**: Prefer `book-downloader`; use `scripts/*.sh` only for targeted debugging or special cases
 
@@ -85,10 +86,9 @@ Search Anna's Archive → Validate → Open detail page in Chrome → Browser do
 ## Dependencies
 
 - python3 (required)
-- Google Chrome (required)
-- Playwright Python package (required for default backend)
 - curl and standard Unix tools (required for legacy backend)
-- Optional: ANNAS_ARCHIVE_KEY in `book-downloader/.env`
+- ANNAS_ARCHIVE_KEY in `book-downloader/.env` (required for default backend)
+- Optional: Google Chrome and Playwright Python package for the legacy browser backend
 - Optional: ANNAS_ARCHIVE_COOKIE_JAR in `book-downloader/.env` for the legacy backend
 - Optional: ANNAS_BROWSER_* settings in `book-downloader/.env` for browser automation tuning
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Book Downloader Skill
-# Default backend: Playwright + real Chrome automation.
+# Default backend: Native HTML search + member API download.
 
 set -u
 
@@ -18,7 +18,7 @@ if [ -z "$QUERY" ]; then
     exit 1
 fi
 
-BACKEND="${ANNAS_DOWNLOADER_BACKEND:-playwright}"
+BACKEND="${ANNAS_DOWNLOADER_BACKEND:-api}"
 PYTHON_BIN="${SCRIPT_DIR}/.venv/bin/python"
 
 if [ ! -x "$PYTHON_BIN" ]; then
@@ -26,6 +26,10 @@ if [ ! -x "$PYTHON_BIN" ]; then
 fi
 
 case "$BACKEND" in
+    api)
+        PYTHONPATH="$SCRIPT_DIR/src${PYTHONPATH:+:$PYTHONPATH}" \
+            exec "$PYTHON_BIN" -m alexandria_annas.cli "$QUERY" "$OUTPUT_DIR"
+        ;;
     playwright)
         exec "$PYTHON_BIN" "$SCRIPT_DIR/scripts/anna_browser.py" "$QUERY" "$OUTPUT_DIR"
         ;;
@@ -35,7 +39,7 @@ case "$BACKEND" in
         ;;
     *)
         echo "Unsupported ANNAS_DOWNLOADER_BACKEND: $BACKEND"
-        echo "Supported backends: playwright, curl"
+        echo "Supported backends: api, playwright, curl"
         exit 1
         ;;
 esac

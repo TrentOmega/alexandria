@@ -1,6 +1,6 @@
 ---
 name: book-downloader
-description: Use a Playwright-driven Chrome session to search Anna's Archive mirror domains (`gl`, `pk`, `gd`), validate the requested title, author, or edition, follow the real browser download flow, and save the resulting PDF or EPUB to `~/Downloads/`. Use when The Agent needs to find or download a book from Anna's Archive, or when a user asks for a book by title, author, edition, or Anna's Archive link.
+description: Use the API-first Alexandria downloader to search Anna's Archive, validate the best book match, fetch a member fast-download URL with `ANNAS_ARCHIVE_KEY`, and save the resulting file to `~/Downloads/`. Fall back to legacy browser or curl backends only when explicitly requested.
 ---
 
 # Book Downloader
@@ -17,20 +17,22 @@ Pass a single query string. Do not pass the author as a separate positional argu
 ## Default Workflow
 
 1. Run `./book-downloader "<query>"`.
-2. Let it launch `scripts/anna_browser.py` in a headed Chrome session with a persistent browser profile.
-3. Let the browser backend search Anna's Archive, validate the best result, open the detail page, and follow the site download flow in the browser.
-4. Let Playwright save the real browser download to `~/Downloads/`.
+2. Let the default `api` backend search Anna's Archive HTML, inspect the top candidates, and validate the best result using generic ranking instead of title-specific hacks.
+3. Let the downloader call Anna's Archive member API at `/dyn/api/fast_download.json` using `ANNAS_ARCHIVE_KEY`.
+4. Let the downloader save the resulting file directly to `~/Downloads/`.
 
-Use the bundled scripts instead of reimplementing Anna's Archive scraping or URL construction ad hoc. If the browser backend is unavailable, set `ANNAS_DOWNLOADER_BACKEND=curl` to fall back to the legacy shell path.
+Use the bundled wrapper instead of reimplementing Anna's Archive search or API access ad hoc. If the API-first path is unavailable, set `ANNAS_DOWNLOADER_BACKEND=playwright` or `ANNAS_DOWNLOADER_BACKEND=curl` to opt into a legacy backend.
 
 ## Bundled Resources
 
 - `book-downloader`
-  Use as the primary end-to-end wrapper. It defaults to `scripts/anna_browser.py`, loads browser settings from `.env`, and keeps the legacy shell downloader available behind `ANNAS_DOWNLOADER_BACKEND=curl`.
+  Use as the primary end-to-end wrapper. It defaults to the native Python API-first backend under `src/alexandria_annas/`, loads settings from `.env`, and keeps legacy browser/curl backends available behind explicit `ANNAS_DOWNLOADER_BACKEND` values.
+- `src/alexandria_annas/`
+  Use as the primary implementation. It performs HTML search, generic ranking, member API fast-download resolution, and direct file download without making Playwright the default path.
 - `scripts/anna_browser.py`
-  Use as the default backend. It drives headed Chrome through Playwright, searches Anna's Archive in a persistent browser profile, follows the real download flow, rejects challenge pages, and writes failure artifacts under `ANNAS_BROWSER_ARTIFACT_DIR` when automation fails.
+  Treat as a legacy browser fallback. It drives headed Chrome through Playwright, follows the real browser flow, and writes failure artifacts under `ANNAS_BROWSER_ARTIFACT_DIR` when automation fails.
 - `scripts/legacy_curl_downloader.sh`
-  Treat as the legacy fallback backend. Use it only when the browser backend is unavailable or the task explicitly calls for the older `curl`-driven path.
+  Treat as the legacy shell fallback backend. Use it only when the native API backend is unavailable and the task explicitly calls for the older `curl`-driven path.
 - `scripts/smart_finder.sh`
   Treat as the legacy shell finder. It still handles known problematic titles and validation, but it is no longer the default end-to-end path.
 - `scripts/download_with_key.sh`
@@ -65,7 +67,13 @@ When running a helper script directly, use:
 
 - `book-downloader` downloads files to `~/Downloads/`.
 - Most helper scripts, when run directly, accept `[output_dir]` as the second argument and otherwise default to `$HOME/.claude/downloads/`.
-- Place `ANNAS_DOWNLOADER_BACKEND=playwright` in `<skill-dir>/.env` to use the browser backend by default.
+- Place `ANNAS_DOWNLOADER_BACKEND=api` in `<skill-dir>/.env` to use the default native backend.
+- Place `ANNAS_SEARCH_BACKEND=html` in `<skill-dir>/.env` to use live HTML search.
+- Place `ANNAS_ARCHIVE_BASE_URL=https://annas-archive.li` in `<skill-dir>/.env` to select the active mirror for both search and API requests.
+- Place `ANNAS_TIMEOUT_SECONDS=30` in `<skill-dir>/.env` to control request timeouts.
+- Place `ANNAS_MAX_CANDIDATES=5` in `<skill-dir>/.env` to control how many detail pages are inspected before choosing the best match.
+- Place `ANNAS_ENABLE_BROWSER_FALLBACK=false` in `<skill-dir>/.env` to keep browser fallback disabled by default.
+- Place `ANNAS_DOWNLOADER_BACKEND=playwright` in `<skill-dir>/.env` only when you explicitly want the browser backend.
 - Place `ANNAS_BROWSER_CHANNEL=chrome` in `<skill-dir>/.env` to target Chrome.
 - Place `ANNAS_BROWSER_USER_DATA_DIR=/absolute/path/to/profile-dir` in `<skill-dir>/.env` to reuse a persistent browser profile across runs.
 - Place `ANNAS_BROWSER_HEADLESS=false` in `<skill-dir>/.env` to keep the default headed mode.
@@ -85,12 +93,12 @@ python3 -m venv .venv
 
 ## URL Pattern
 
-Preserve the MD5 detail-page workflow:
+Preserve the MD5 detail-page workflow for search results and use the member API for final downloads:
 
 - Detail page: `https://annas-archive.gl/md5/{hash}`
-- Fast download: `https://annas-archive.gl/fast_download/{hash}/0/0`
+- Member API: `https://annas-archive.li/dyn/api/fast_download.json?md5={hash}&key=...`
 
-Prefer letting the browser backend follow the real download flow from the detail page. Use the `fast_download` pattern only in the legacy `curl` backend.
+Prefer the member API and direct file download. Use the browser path only as a legacy fallback.
 
 If the site returns a DDoS-Guard or challenge page, fail explicitly instead of treating the HTML as a book file, and inspect the saved artifacts.
 
@@ -102,6 +110,6 @@ If the site returns a DDoS-Guard or challenge page, fail explicitly instead of t
 
 Expected flow:
 
-1. `scripts/anna_browser.py` searches Anna's Archive and prints a validated `Download link: https://annas-archive.../md5/{hash}` line.
-2. `book-downloader` reopens that detail page in Chrome and follows the browser download flow.
-3. `book-downloader` rejects DDoS-Guard/challenge pages, writes artifacts on failure, and saves the PDF or EPUB in `~/Downloads/`.
+1. The native backend searches Anna's Archive and prints a validated `Download link: https://annas-archive.../md5/{hash}` line.
+2. The backend calls the member API to obtain a fast-download URL for that hash.
+3. `book-downloader` saves the resulting PDF or EPUB in `~/Downloads/`.
